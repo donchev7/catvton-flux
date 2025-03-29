@@ -1,21 +1,27 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 import uvicorn
 import tempfile
 import os
+import asyncio
+import glob
 from tryoff_inference import run_inference
 from PIL import Image
 import io
 import requests
-from typing import Optional
 import uuid
 import torch
 from diffusers import FluxTransformer2DModel, FluxFillPipeline
 import logging
+from asyncio import Lock
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+transformer = None
+pipe = None
+inference_lock = Lock()
+tmp_dir = tempfile.mkdtemp()
 
 app = FastAPI(
     title="CATVTON-FLUX Tryoff API",
@@ -27,12 +33,15 @@ app = FastAPI(
 STATEBIN_BASE_URL = "https://statebin.io"
 STATEBIN_BUCKET = "catvton-flux"
 
-# Global variables for models
-transformer = None
-pipe = None
+def cleanup_temp_dir(tmp_dir: str):
+    try:
+        for file in glob.glob(os.path.join(tmp_dir, "*.png")):
+            os.remove(file)
+        logger.info(f"Cleaned up temporary directory: {tmp_dir}")
+    except Exception as e:
+        logger.error(f"Error cleaning up temporary directory {tmp_dir}: {str(e)}")
 
 async def load_models():
-    """Load models at startup"""
     global transformer, pipe
     try:
         logger.info("Loading cat-tryoff-flux model...")
@@ -71,6 +80,7 @@ async def upload_to_statebin(file_path: str, file_name: str) -> str:
 
 @app.post("/tryoff")
 async def tryoff(
+    background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
     mask: UploadFile = File(...),
     steps: int = 50,
@@ -79,71 +89,54 @@ async def tryoff(
     width: int = 576,
     height: int = 768,
 ):
-    """
-    Process a tryoff request with the given image and mask.
-    Returns URLs to both the restored garment and tryon result.
-    """
     if transformer is None or pipe is None:
         raise HTTPException(status_code=503, detail="Models are not loaded yet. Please try again in a few moments.")
+
+    try:        
+        request_id = str(uuid.uuid4())
         
-    try:
-        # Create temporary directory for processing
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Generate unique IDs for this request
-            request_id = str(uuid.uuid4())
-            
-            # Save uploaded files
-            image_path = os.path.join(tmp_dir, "image.png")
-            mask_path = os.path.join(tmp_dir, "mask.png")
-            
-            # Process and save image
-            image_content = await image.read()
-            image_pil = Image.open(io.BytesIO(image_content))
-            image_pil.save(image_path)
-            
-            # Process and save mask
-            mask_content = await mask.read()
-            mask_pil = Image.open(io.BytesIO(mask_content))
-            mask_pil.save(mask_path)
-            
-            # Run inference
-            garment_result, tryon_result = run_inference(
+        image_path = os.path.join(tmp_dir, f"image_{request_id}.png")
+        mask_path = os.path.join(tmp_dir, f"mask_{request_id}.png")
+        
+        image_content = await image.read()
+        image_pil = Image.open(io.BytesIO(image_content))
+        image_pil.save(image_path)
+        
+        mask_content = await mask.read()
+        mask_pil = Image.open(io.BytesIO(mask_content))
+        mask_pil.save(mask_path)
+        
+        async with inference_lock:
+            garment_result, _ = await asyncio.to_thread(
+                run_inference,
                 image_path=image_path,
                 mask_path=mask_path,
                 num_steps=steps,
                 guidance_scale=guidance_scale,
                 seed=seed,
                 size=(width, height),
-                pipe=pipe  # Pass the loaded pipeline
+                pipe=pipe
             )
-            
-            # Save results to temporary files
-            garment_path = os.path.join(tmp_dir, f"garment_{request_id}.png")
-            tryon_path = os.path.join(tmp_dir, f"tryon_{request_id}.png")
-            
-            garment_result.save(garment_path)
-            tryon_result.save(tryon_path)
-            
-            # Upload results to Statebin
-            garment_url = await upload_to_statebin(
-                garment_path,
-                f"garments/{request_id}.png"
-            )
-            
-            tryon_url = await upload_to_statebin(
-                tryon_path,
-                f"tryons/{request_id}.png"
-            )
-            
-            return JSONResponse({
-                "garment_url": garment_url,
-                "tryon_url": tryon_url,
-                "request_id": request_id
-            })
-            
+        
+        garment_path = os.path.join(tmp_dir, f"garment_{request_id}.png")
+        
+        garment_result.save(garment_path)
+        
+        garment_url = await upload_to_statebin(
+            garment_path,
+            f"garments/{request_id}.png"
+        )
+        api_key = os.getenv("STATEBIN_API_KEY")
+        
+        return JSONResponse({
+            "result": f"{garment_url}?key={api_key}"
+        })
+        
     except Exception as e:
         logger.error(f"Error during inference: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        background_tasks.add_task(cleanup_temp_dir, tmp_dir)
 
 @app.get("/health")
 async def health_check():
