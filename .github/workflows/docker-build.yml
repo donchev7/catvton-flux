@@ -15,57 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - name: Configure Docker to use LVM volume
-        run: |
-          echo "=== Disk Usage ==="
-          df -h
-
-          echo -e "\n=== Top 10 Largest Directories in / ==="
-          sudo du -h / --max-depth=1 2>/dev/null | sort -hr | head -n 10
-
-          echo -e "\n=== Top 10 Largest Directories in /usr ==="
-          sudo du -h /usr --max-depth=1 2>/dev/null | sort -hr | head -n 10
-
-          echo -e "\n=== Top 10 Largest Directories in /var ==="
-          sudo du -h /var --max-depth=1 2>/dev/null | sort -hr | head -n 10
-
-          echo -e "\n=== Top 10 Largest Directories in /opt ==="
-          sudo du -h /opt --max-depth=1 2>/dev/null | sort -hr | head -n 10
-
-          echo -e "\n=== Docker Related Directories ==="
-          sudo du -h /var/lib/docker 2>/dev/null || true
-          sudo du -h /mnt/docker 2>/dev/null || true
-
-          # Stop all Docker services
-          sudo systemctl stop docker.socket docker.service
-
-          # Clean up old Docker data
-          sudo rm -rf /var/lib/docker
-          sudo rm -rf /mnt/docker
-
-          # Create new Docker directory with proper permissions
-          sudo mkdir -p /mnt/docker
-          sudo chown -R root:root /mnt/docker
-          sudo chmod 711 /mnt/docker
-
-          # Create Docker daemon config directory if it doesn't exist
-          sudo mkdir -p /etc/docker
-
-          # Create or update daemon.json
-          sudo tee /etc/docker/daemon.json << EOF
-          {
-            "data-root": "/mnt/docker"
-          }
-          EOF
-
-          # Start Docker service
-          sudo systemctl start docker.socket docker.service
-
-          # Verify Docker is using the new location and show available space
-          echo "=== Docker Root Directory ==="
-          docker info | grep "Docker Root Dir"
-          echo "=== Available Space in Docker Root ==="
-          df -h /mnt/docker
+      - name: Free disk pace
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
 
       - name: Checkout repository
         uses: actions/checkout@v4
