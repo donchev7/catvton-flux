@@ -59,7 +59,7 @@ async def startup_event():
 async def upload_to_statebin(file_path: str, file_name: str) -> str:
     """Upload a file to Statebin and return its URL"""
     api_key = os.getenv("STATEBIN_API_KEY")
-    url = f"{STATEBIN_BASE_URL}/{STATEBIN_BUCKET}/{file_name}"
+    url = f"{STATEBIN_BASE_URL}/bucket/{STATEBIN_BUCKET}/{file_name}"
     headers = {"X-API-KEY": api_key}
     
     with open(file_path, 'rb') as f:
