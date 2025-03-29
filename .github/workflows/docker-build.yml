@@ -15,24 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 512
-          swap-size-mb: 1024
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
-          remove-codeql: "true"
-          remove-docker-images: "true"
-
       - name: Configure Docker to use LVM volume
         run: |
           # Stop all Docker services
           sudo systemctl stop docker.socket docker.service
-
-          # Clean up any existing Docker data
-          sudo rm -rf /home/runner/work/catvton-flux/catvton-flux/docker
 
           # Create Docker daemon config directory if it doesn't exist
           sudo mkdir -p /etc/docker
@@ -40,7 +26,7 @@ jobs:
           # Create or update daemon.json
           sudo tee /etc/docker/daemon.json << EOF
           {
-            "data-root": "/home/runner/work/catvton-flux/catvton-flux/docker"
+            "data-root": "/mnt/docker"
           }
           EOF
 
