@@ -10,3 +10,7 @@ venv/
 .env
 *.log
 .DS_Store 
+.github
+example
+image_datasets
+script

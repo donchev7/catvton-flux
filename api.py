@@ -27,12 +27,6 @@ app = FastAPI(
 STATEBIN_BASE_URL = "https://statebin.io"
 STATEBIN_BUCKET = "catvton-flux"
 
-# Model paths
-MODEL_PATHS = {
-    "cat-tryoff-flux": "/app/models/cat-tryoff-flux",
-    "flux-dev": "/app/models/flux-dev"
-}
-
 # Global variables for models
 transformer = None
 pipe = None
@@ -43,12 +37,12 @@ async def load_models():
     try:
         logger.info("Loading cat-tryoff-flux model...")
         transformer = FluxTransformer2DModel.from_pretrained(
-            MODEL_PATHS["cat-tryoff-flux"],
+            "xiaozaa/cat-tryoff-flux",
             torch_dtype=torch.bfloat16
         )
         logger.info("Loading FLUX.1-dev model...")
         pipe = FluxFillPipeline.from_pretrained(
-            MODEL_PATHS["flux-dev"],
+            "black-forest-labs/FLUX.1-dev",
             transformer=transformer,
             torch_dtype=torch.bfloat16
         ).to("cuda")
