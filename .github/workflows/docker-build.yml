@@ -25,6 +25,28 @@ jobs:
           remove-haskell: "true"
           remove-codeql: "true"
           remove-docker-images: "true"
+
+      - name: Configure Docker to use LVM volume
+        run: |
+          # Stop Docker service
+          sudo systemctl stop docker
+
+          # Create Docker daemon config directory if it doesn't exist
+          sudo mkdir -p /etc/docker
+
+          # Create or update daemon.json
+          sudo tee /etc/docker/daemon.json << EOF
+          {
+            "data-root": "/home/runner/work/catvton-flux/catvton-flux/docker"
+          }
+          EOF
+
+          # Start Docker service
+          sudo systemctl start docker
+
+          # Verify Docker is using the new location
+          docker info | grep "Docker Root Dir"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
