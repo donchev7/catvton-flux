@@ -20,7 +20,7 @@ COPY . .
 #     huggingface-cli download black-forest-labs/FLUX.1-dev
 
 COPY requirements-prod.txt .
-RUN pip install --no-cache-dir "diffusers[torch]" -r requirements-prod.txt
+RUN pip install --no-cache-dir "diffusers[torch]" protobuf sentencepiece -r requirements-prod.txt
 
 EXPOSE 8000
 
