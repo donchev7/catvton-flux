@@ -28,8 +28,11 @@ jobs:
 
       - name: Configure Docker to use LVM volume
         run: |
-          # Stop Docker service
-          sudo systemctl stop docker
+          # Stop all Docker services
+          sudo systemctl stop docker.socket docker.service
+
+          # Clean up any existing Docker data
+          sudo rm -rf /home/runner/work/catvton-flux/catvton-flux/docker
 
           # Create Docker daemon config directory if it doesn't exist
           sudo mkdir -p /etc/docker
@@ -42,7 +45,7 @@ jobs:
           EOF
 
           # Start Docker service
-          sudo systemctl start docker
+          sudo systemctl start docker.socket docker.service
 
           # Verify Docker is using the new location
           docker info | grep "Docker Root Dir"
